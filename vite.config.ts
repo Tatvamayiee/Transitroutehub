@@ -12,4 +12,9 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  nitro: {
+    // Vercel injects VERCEL=1 during its builds; elsewhere (Lovable/Cloudflare)
+    // keep the config package's cloudflare-module default.
+    preset: process.env["VERCEL"] ? "vercel" : "cloudflare-module",
+  },
 });
