@@ -101,6 +101,21 @@ export async function dbAsync(): Promise<SupabaseClient> {
   return client;
 }
 
+/**
+ * A Supabase client that acts as the signed-in caller: the GoTrue access token is
+ * forwarded as the Authorization header, so Storage row-level policies can use
+ * `auth.uid()`. Never cached — tokens differ per request and must not leak
+ * between callers.
+ */
+export async function dbAs(token: string): Promise<SupabaseClient> {
+  const config = await resolveConfig();
+  if (!config) throw missingConfigError();
+  return createClient(config.url, config.key, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+}
+
 export function db(): SupabaseClient {
   if (!client) {
     // Best-effort sync path: process env only. Prefer dbAsync(); if this runs

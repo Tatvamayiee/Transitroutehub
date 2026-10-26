@@ -71,7 +71,32 @@ export type Booking = {
   status: BookingStatus;
   createdAt: string;
   updatedAt: string;
+  /** Storage object path in the private `cargo-photos` bucket; null when none is required. */
+  cargoPhotoPath: string | null;
+  cargoPhotoLabel: string | null;
+  cargoPhotoBytes: number | null;
+  cargoPhotoUploadedAt: string | null;
+  reviewStatus: CargoReviewStatus | null;
+  reviewNote: string;
+  reviewedAt: string | null;
+  reviewerId: string | null;
 };
+
+/**
+ * Provider decision on a trader's cargo photograph.
+ * `null` on a booking means no photo was submitted — the booking workflow is
+ * unchanged for shipments that do not require one. Review is advisory: it never
+ * gates a booking status transition, so a booking can never be stuck on it.
+ */
+export type CargoReviewStatus = "pending" | "approved" | "rejected";
+
+export const CARGO_REVIEW_LABELS: Record<CargoReviewStatus, string> = {
+  pending: "Pending review",
+  approved: "Photo approved",
+  rejected: "Photo rejected",
+};
+
+export type CargoReviewDecision = "approved" | "rejected";
 
 export type PaymentStatus = "unfunded" | "funded" | "released" | "refunded";
 
@@ -214,6 +239,9 @@ export type BookingView = {
   traderName: string;
   paymentStatus: PaymentStatus;
   amount: number;
+  /** Short-lived signed URL for the cargo photo, when one is attached and readable. */
+  cargoPhotoUrl: string | null;
+  reviewerName: string | null;
 };
 
 /** A booking conversation, joined with its counterparty and latest message. */
@@ -292,11 +320,13 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     "Submit verification documents",
     "Manage routes and containers",
     "Respond to bookings",
+    "Review cargo photographs",
     "Message traders about a shipment",
   ],
   trader: [
     "Search cargo space",
     "Book and manage shipments",
+    "Upload cargo photographs",
     "Fund escrow and release on delivery",
     "Message providers about a shipment",
   ],

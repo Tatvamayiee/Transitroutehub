@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-import { ClipboardList, RefreshCw } from "lucide-react";
+import { Camera, ClipboardList, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -34,6 +34,7 @@ import {
 } from "@/lib/api";
 import { ROLE_LABELS, useCurrentUser, useToken } from "@/lib/auth";
 import { BOOKING_STATUS_LABELS, MODE_LABELS } from "@/domain/types";
+import { CargoPhotoDialog, CargoPhotoPill } from "@/components/cargo-photo";
 
 export const Route = createFileRoute("/bookings")({
   head: () => ({
@@ -108,6 +109,13 @@ function BookingsPage() {
             <Button size="sm" variant="outline" onClick={reload}>
               <RefreshCw className="size-4" /> Refresh
             </Button>
+            {isProvider ? (
+              <Button asChild size="sm" variant="outline">
+                <Link to="/cargo-review">
+                  <Camera className="size-4" /> Photo review
+                </Link>
+              </Button>
+            ) : null}
             <Button asChild size="sm">
               <Link to="/payments">Escrow</Link>
             </Button>
@@ -228,6 +236,7 @@ function BookingTable({
   onChanged: () => void;
 }) {
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [photoFor, setPhotoFor] = useState<BookingView | null>(null);
 
   async function advance(bookingId: string, status: BookingStatus) {
     setBusyId(bookingId);
@@ -258,88 +267,130 @@ function BookingTable({
   }
 
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Shipment</TableHead>
-          {mode === "provider" ? <TableHead>Trader</TableHead> : <TableHead>Provider</TableHead>}
-          <TableHead className="text-right">Volume</TableHead>
-          <TableHead className="text-right">Escrow</TableHead>
-          <TableHead>Status</TableHead>
-          <TableHead className="text-right">Actions</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {rows.map(({ booking, container, lane, providerName, traderName }) => (
-          <TableRow key={booking.id}>
-            <TableCell>
-              <div className="font-medium">
-                {lane.origin} → {lane.destination}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                <span className="font-mono">{container.label}</span> · {container.id} ·{" "}
-                {MODE_LABELS[lane.mode]}
-              </div>
-            </TableCell>
-            <TableCell className="text-sm">
-              {mode === "provider" ? traderName : providerName}
-            </TableCell>
-            <TableCell className="text-right tabular-nums">
-              {booking.requestedM3.toFixed(2)} m³
-            </TableCell>
-            <TableCell className="text-right text-sm text-muted-foreground">{booking.id}</TableCell>
-            <TableCell>
-              <StatusPill
-                label={BOOKING_STATUS_LABELS[booking.status]}
-                tone={STATUS_TONE[booking.status]}
-              />
-            </TableCell>
-            <TableCell>
-              <div className="flex flex-wrap justify-end gap-1.5">
-                {mode === "provider" ? (
-                  <>
-                    {booking.status === "confirmed" ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={busyId === booking.id}
-                        onClick={() => advance(booking.id, "in_transit")}
-                      >
-                        Mark in transit
-                      </Button>
-                    ) : null}
-                    {booking.status === "in_transit" ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={busyId === booking.id}
-                        onClick={() => advance(booking.id, "delivered")}
-                      >
-                        Mark delivered
-                      </Button>
-                    ) : null}
-                  </>
-                ) : null}
-                <Button size="sm" variant="outline" asChild>
-                  <Link to="/loading" search={{ booking: booking.id }}>
-                    Load plan
-                  </Link>
-                </Button>
-                {booking.status !== "cancelled" && booking.status !== "delivered" ? (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={busyId === booking.id}
-                    onClick={() => cancel(booking.id)}
-                  >
-                    Cancel
-                  </Button>
-                ) : null}
-              </div>
-            </TableCell>
+    <>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Shipment</TableHead>
+            {mode === "provider" ? <TableHead>Trader</TableHead> : <TableHead>Provider</TableHead>}
+            <TableHead className="text-right">Volume</TableHead>
+            <TableHead>Reference</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Cargo photo</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
           </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+        </TableHeader>
+        <TableBody>
+          {rows.map((row) => {
+            const { booking, container, lane, providerName, traderName } = row;
+            return (
+              <TableRow key={booking.id}>
+                <TableCell>
+                  <div className="font-medium">
+                    {lane.origin} → {lane.destination}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    <span className="font-mono">{container.label}</span> · {container.id} ·{" "}
+                    {MODE_LABELS[lane.mode]}
+                  </div>
+                </TableCell>
+                <TableCell className="text-sm">
+                  {mode === "provider" ? traderName : providerName}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {booking.requestedM3.toFixed(2)} m³
+                </TableCell>
+                <TableCell className="font-mono text-xs text-muted-foreground">
+                  {booking.id}
+                </TableCell>
+                <TableCell>
+                  <StatusPill
+                    label={BOOKING_STATUS_LABELS[booking.status]}
+                    tone={STATUS_TONE[booking.status]}
+                  />
+                </TableCell>
+                <TableCell>
+                  <div className="flex flex-col items-start gap-1">
+                    <CargoPhotoPill status={booking.reviewStatus} />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setPhotoFor(row)}
+                    >
+                      <Camera className="size-3.5" />
+                      {booking.cargoPhotoPath
+                        ? mode === "provider"
+                          ? "Review"
+                          : "View"
+                        : "Upload"}
+                    </Button>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="flex flex-wrap justify-end gap-1.5">
+                    {mode === "provider" ? (
+                      <>
+                        {booking.status === "confirmed" ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={busyId === booking.id}
+                            onClick={() => advance(booking.id, "in_transit")}
+                          >
+                            Mark in transit
+                          </Button>
+                        ) : null}
+                        {booking.status === "in_transit" ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={busyId === booking.id}
+                            onClick={() => advance(booking.id, "delivered")}
+                          >
+                            Mark delivered
+                          </Button>
+                        ) : null}
+                      </>
+                    ) : null}
+                    <Button size="sm" variant="outline" asChild>
+                      <Link to="/loading" search={{ booking: booking.id }}>
+                        Load plan
+                      </Link>
+                    </Button>
+                    {booking.status !== "cancelled" && booking.status !== "delivered" ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={busyId === booking.id}
+                        onClick={() => cancel(booking.id)}
+                      >
+                        Cancel
+                      </Button>
+                    ) : null}
+                  </div>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+      {photoFor ? (
+        <CargoPhotoDialog
+          view={photoFor}
+          token={token}
+          open={photoFor !== null}
+          onOpenChange={(open) => {
+            if (!open) setPhotoFor(null);
+          }}
+          canUpload={mode === "trader"}
+          canReview={mode === "provider"}
+          onChanged={() => {
+            onChanged();
+            setPhotoFor(null);
+          }}
+        />
+      ) : null}
+    </>
   );
 }

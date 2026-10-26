@@ -19,6 +19,7 @@ import type {
   SpaceListing,
 } from "@/domain/types";
 import { requireAuthUser } from "@/server/services/auth";
+import { signedCargoPhotoUrls } from "@/server/services/storage";
 import * as repoCatalog from "@/server/db/repo/catalog";
 import * as repoBookings from "@/server/db/repo/bookings";
 import * as repoPlatform from "@/server/db/repo/platform";
@@ -57,18 +58,22 @@ async function toView(booking: Booking): Promise<BookingView | null> {
   const container = await findContainerById(booking.containerId);
   const lane = container ? await findLaneById(container.laneId) : undefined;
   if (!container || !lane) return null;
-  const [trader, payment] = await Promise.all([
+  const [trader, payment, provider, reviewer] = await Promise.all([
     findUserById(booking.userId),
     repoPlatform.findPaymentByBooking(booking.id),
+    findUserById(booking.providerId),
+    booking.reviewerId ? findUserById(booking.reviewerId) : Promise.resolve(undefined),
   ]);
   return {
     booking,
     container,
     lane,
-    providerName: providerName(await findUserById(booking.providerId)),
+    providerName: providerName(provider),
     traderName: trader?.name ?? "Unknown trader",
     paymentStatus: payment?.status ?? "unfunded",
     amount: payment?.amount ?? escrowAmountFor(container, booking.requestedM3),
+    cargoPhotoUrl: null,
+    reviewerName: reviewer?.name ?? null,
   };
 }
 
@@ -77,11 +82,34 @@ function recomputeContainerStatus(container: Container): ContainerStatus | undef
   return container.availableM3 > 0 ? "available" : "booked";
 }
 
-async function viewsFor(rows: Booking[]): Promise<BookingView[]> {
+async function viewsFor(token: string, rows: Booking[]): Promise<BookingView[]> {
   const views = await Promise.all(rows.map(toView));
-  return views
+  const sorted = views
     .filter((view): view is BookingView => view !== null)
     .sort((a, b) => b.booking.createdAt.localeCompare(a.booking.createdAt));
+  return attachPhotoUrls(token, sorted);
+}
+
+/**
+ * Mint signed URLs for every attached cargo photo in one storage call. The
+ * bucket is private, so this is the only way a browser can display the image.
+ * Exported for the cargo-photo service, which builds single views after a write.
+ */
+export async function attachPhotoUrls(token: string, views: BookingView[]): Promise<BookingView[]> {
+  const paths = views
+    .map((view) => view.booking.cargoPhotoPath)
+    .filter((path): path is string => Boolean(path));
+  if (paths.length === 0) return views;
+  const urls = await signedCargoPhotoUrls(token, paths);
+  return views.map((view) => {
+    const path = view.booking.cargoPhotoPath;
+    return path ? { ...view, cargoPhotoUrl: urls.get(path) ?? null } : view;
+  });
+}
+
+/** Public wrapper so other services can build the same read model. */
+export async function bookingViews(token: string, rows: Booking[]): Promise<BookingView[]> {
+  return viewsFor(token, rows);
 }
 
 // ---------------- lanes ----------------
@@ -469,7 +497,12 @@ export async function myBookings(token: string): Promise<Result<BookingView[]>> 
   const user = await requireAuthUser(token);
   if (!user) return failure(CODE.UNAUTHORIZED, "Sign in to see your bookings.");
   const bookings = await repoBookings.listAllBookings();
-  return success(await viewsFor(bookings.filter((booking) => booking.userId === user.id)));
+  return success(
+    await viewsFor(
+      token,
+      bookings.filter((booking) => booking.userId === user.id),
+    ),
+  );
 }
 
 export async function providerBookings(token: string): Promise<Result<BookingView[]>> {
@@ -484,7 +517,7 @@ export async function providerBookings(token: string): Promise<Result<BookingVie
     user.role === "admin"
       ? bookings.slice()
       : bookings.filter((booking) => booking.providerId === user.id);
-  return success(await viewsFor(scoped));
+  return success(await viewsFor(token, scoped));
 }
 
 export async function allBookings(token: string): Promise<Result<BookingView[]>> {
@@ -492,7 +525,7 @@ export async function allBookings(token: string): Promise<Result<BookingView[]>>
   const user = await requireAuthUser(token);
   if (!user) return failure(CODE.UNAUTHORIZED, "Sign in first.");
   if (user.role !== "admin") return failure(CODE.FORBIDDEN, "Administrators only.");
-  return success(await viewsFor(await repoBookings.listAllBookings()));
+  return success(await viewsFor(token, await repoBookings.listAllBookings()));
 }
 
 export async function bookingDetails(
@@ -509,7 +542,8 @@ export async function bookingDetails(
   }
   const view = await toView(booking);
   if (!view) return failure(CODE.NOT_FOUND, "Booking container is no longer available.");
-  return success(view);
+  const [withPhoto] = await attachPhotoUrls(token, [view]);
+  return success(withPhoto ?? view);
 }
 
 export async function updateBookingStatus(

@@ -3,9 +3,9 @@ import { useEffect, useState } from "react";
 import { ArrowRight, LogOut, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { MODULE_NAV, StatusPill } from "@/components/module-kit";
+import { StatusPill } from "@/components/module-kit";
+import { modulesForRole } from "@/lib/module-nav";
 import { logout, ROLE_LABELS, ROLE_PERMISSIONS, useCurrentUser } from "@/lib/auth";
-import type { UserRole } from "@/lib/auth";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -25,19 +25,6 @@ export const Route = createFileRoute("/dashboard")({
   }),
   component: DashboardPage,
 });
-
-const MODULE_ACCESS: Record<string, readonly UserRole[]> = {
-  "/verification": ["provider", "admin"],
-  "/routes": ["provider", "admin"],
-  "/aggregation": ["trader", "provider", "admin"],
-  "/catalog": ["trader", "provider", "admin"],
-  "/bookings": ["trader", "provider", "admin"],
-  "/loading": ["trader", "provider", "admin"],
-  "/payments": ["trader", "provider", "admin"],
-  "/messages": ["trader", "provider", "admin"],
-  "/admin": ["admin"],
-  "/reports": ["provider", "admin"],
-};
 
 function DashboardPage() {
   const user = useCurrentUser();
@@ -64,9 +51,7 @@ function DashboardPage() {
   }
 
   const permissions = ROLE_PERMISSIONS[user.role] ?? [];
-  const modules = MODULE_NAV.filter((module) =>
-    (MODULE_ACCESS[module.to] ?? []).includes(user.role),
-  );
+  const modules = modulesForRole(user.role);
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-10">
@@ -133,7 +118,10 @@ function DashboardPage() {
               to={module.to}
               className="group flex items-center justify-between rounded-lg border border-border px-4 py-3 text-sm transition-colors hover:border-primary/50 hover:bg-secondary"
             >
-              <span className="font-medium">{module.label}</span>
+              <span className="flex items-center gap-2 font-medium">
+                <module.icon className="size-4 shrink-0 text-primary/80" />
+                {module.label}
+              </span>
               <ArrowRight className="size-3.5 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
             </Link>
           ))}

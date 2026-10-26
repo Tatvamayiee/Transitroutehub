@@ -84,6 +84,8 @@ export async function paymentViews(bookingIds: string[]): Promise<BookingView[]>
         traderName: trader?.name ?? "Unknown trader",
         paymentStatus: payment?.status ?? "unfunded",
         amount: payment?.amount ?? 0,
+        cargoPhotoUrl: null,
+        reviewerName: null,
       } satisfies BookingView;
     }),
   );

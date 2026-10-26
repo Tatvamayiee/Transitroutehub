@@ -20,6 +20,14 @@ export {
 } from "@/rpc/catalog";
 
 export {
+  serverSubmitCargoPhoto,
+  serverReviewCargoPhoto,
+  serverReopenCargoPhoto,
+  serverCargoReviewQueue,
+  serverCargoPendingCount,
+} from "@/rpc/cargo";
+
+export {
   serverLoadPlan,
   serverAddCargoBox,
   serverUpdateCargoBox,

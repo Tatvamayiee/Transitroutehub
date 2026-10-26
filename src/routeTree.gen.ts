@@ -14,6 +14,7 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AggregationRouteImport } from './routes/aggregation'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as BookingsRouteImport } from './routes/bookings'
+import { Route as CargoReviewRouteImport } from './routes/cargo-review'
 import { Route as CatalogRouteImport } from './routes/catalog'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
@@ -49,6 +50,11 @@ const AuthRoute = AuthRouteImport.update({
 const BookingsRoute = BookingsRouteImport.update({
   id: '/bookings',
   path: '/bookings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CargoReviewRoute = CargoReviewRouteImport.update({
+  id: '/cargo-review',
+  path: '/cargo-review',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CatalogRoute = CatalogRouteImport.update({
@@ -113,6 +119,7 @@ export interface FileRoutesByFullPath {
   '/aggregation': typeof AggregationRoute
   '/auth': typeof AuthRoute
   '/bookings': typeof BookingsRoute
+  '/cargo-review': typeof CargoReviewRoute
   '/catalog': typeof CatalogRoute
   '/dashboard': typeof DashboardRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -131,6 +138,7 @@ export interface FileRoutesByTo {
   '/aggregation': typeof AggregationRoute
   '/auth': typeof AuthRoute
   '/bookings': typeof BookingsRoute
+  '/cargo-review': typeof CargoReviewRoute
   '/catalog': typeof CatalogRoute
   '/dashboard': typeof DashboardRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -150,6 +158,7 @@ export interface FileRoutesById {
   '/aggregation': typeof AggregationRoute
   '/auth': typeof AuthRoute
   '/bookings': typeof BookingsRoute
+  '/cargo-review': typeof CargoReviewRoute
   '/catalog': typeof CatalogRoute
   '/dashboard': typeof DashboardRoute
   '/forgot-password': typeof ForgotPasswordRoute
@@ -170,6 +179,7 @@ export interface FileRouteTypes {
     | '/aggregation'
     | '/auth'
     | '/bookings'
+    | '/cargo-review'
     | '/catalog'
     | '/dashboard'
     | '/forgot-password'
@@ -188,6 +198,7 @@ export interface FileRouteTypes {
     | '/aggregation'
     | '/auth'
     | '/bookings'
+    | '/cargo-review'
     | '/catalog'
     | '/dashboard'
     | '/forgot-password'
@@ -206,6 +217,7 @@ export interface FileRouteTypes {
     | '/aggregation'
     | '/auth'
     | '/bookings'
+    | '/cargo-review'
     | '/catalog'
     | '/dashboard'
     | '/forgot-password'
@@ -225,6 +237,7 @@ export interface RootRouteChildren {
   AggregationRoute: typeof AggregationRoute
   AuthRoute: typeof AuthRoute
   BookingsRoute: typeof BookingsRoute
+  CargoReviewRoute: typeof CargoReviewRoute
   CatalogRoute: typeof CatalogRoute
   DashboardRoute: typeof DashboardRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
@@ -273,6 +286,13 @@ declare module '@tanstack/react-router' {
       path: '/bookings'
       fullPath: '/bookings'
       preLoaderRoute: typeof BookingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cargo-review': {
+      id: '/cargo-review'
+      path: '/cargo-review'
+      fullPath: '/cargo-review'
+      preLoaderRoute: typeof CargoReviewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/catalog': {
@@ -361,6 +381,7 @@ const rootRouteChildren: RootRouteChildren = {
   AggregationRoute: AggregationRoute,
   AuthRoute: AuthRoute,
   BookingsRoute: BookingsRoute,
+  CargoReviewRoute: CargoReviewRoute,
   CatalogRoute: CatalogRoute,
   DashboardRoute: DashboardRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,

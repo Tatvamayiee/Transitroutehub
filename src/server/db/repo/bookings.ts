@@ -4,10 +4,14 @@
  */
 import { dbAsync } from "@/server/db/client";
 import type { CargoBox, Placement } from "@/domain/loading";
-import type { Booking, BookingStatus } from "@/domain/types";
+import type { Booking, BookingStatus, CargoReviewStatus } from "@/domain/types";
 
 function iso(value: string | null | undefined): string {
   return value ? new Date(value).toISOString() : new Date(0).toISOString();
+}
+
+function isoOrNull(value: string | null | undefined): string | null {
+  return value ? new Date(value).toISOString() : null;
 }
 
 function toBooking(row: Record<string, unknown>): Booking {
@@ -20,6 +24,14 @@ function toBooking(row: Record<string, unknown>): Booking {
     status: row["status"] as BookingStatus,
     createdAt: iso(row["created_at"] as string),
     updatedAt: iso(row["updated_at"] as string),
+    cargoPhotoPath: (row["cargo_photo_path"] as string | null) ?? null,
+    cargoPhotoLabel: (row["cargo_photo_label"] as string | null) ?? null,
+    cargoPhotoBytes: row["cargo_photo_bytes"] == null ? null : Number(row["cargo_photo_bytes"]),
+    cargoPhotoUploadedAt: isoOrNull(row["cargo_photo_uploaded_at"] as string | null),
+    reviewStatus: (row["review_status"] as CargoReviewStatus | null) ?? null,
+    reviewNote: String(row["review_note"] ?? ""),
+    reviewedAt: isoOrNull(row["reviewed_at"] as string | null),
+    reviewerId: (row["reviewer_id"] as string | null) ?? null,
   };
 }
 
@@ -100,6 +112,110 @@ export async function updateBookingFields(
   )
     .from("bookings")
     .update(payload)
+    .eq("id", id)
+    .select("*")
+    .maybeSingle();
+  if (error) throw error;
+  return data ? toBooking(data) : undefined;
+}
+
+/** Store a (re)submitted cargo photo and put it back into the review queue. */
+export async function setCargoPhoto(
+  id: string,
+  patch: {
+    path: string;
+    label: string;
+    bytes: number;
+    uploadedAt: string;
+    updatedAt: string;
+  },
+): Promise<Booking | undefined> {
+  const { data, error } = await (
+    await dbAsync()
+  )
+    .from("bookings")
+    .update({
+      cargo_photo_path: patch.path,
+      cargo_photo_label: patch.label,
+      cargo_photo_bytes: patch.bytes,
+      cargo_photo_uploaded_at: patch.uploadedAt,
+      review_status: "pending",
+      review_note: "",
+      reviewed_at: null,
+      reviewer_id: null,
+      updated_at: patch.updatedAt,
+    })
+    .eq("id", id)
+    .select("*")
+    .maybeSingle();
+  if (error) throw error;
+  return data ? toBooking(data) : undefined;
+}
+
+/**
+ * Put a decided photo back into the review queue so it can be replaced and
+ * judged again. The photo itself is kept — only the decision is cleared.
+ */
+export async function reopenCargoReview(
+  id: string,
+  updatedAt: string,
+): Promise<Booking | undefined> {
+  const { data, error } = await (
+    await dbAsync()
+  )
+    .from("bookings")
+    .update({
+      review_status: "pending",
+      review_note: "",
+      reviewed_at: null,
+      reviewer_id: null,
+      updated_at: updatedAt,
+    })
+    .eq("id", id)
+    .select("*")
+    .maybeSingle();
+  if (error) throw error;
+  return data ? toBooking(data) : undefined;
+}
+
+/**
+ * Number of photos waiting for a provider decision (all providers for admins).
+ * Counted in the database so the navigation badge stays a single cheap query.
+ */
+export async function countPendingCargoReviews(providerId: string | null): Promise<number> {
+  let query = (await dbAsync())
+    .from("bookings")
+    .select("id", { count: "exact", head: true })
+    .eq("review_status", "pending")
+    .not("cargo_photo_path", "is", null);
+  if (providerId) query = query.eq("provider_id", providerId);
+  const { count, error } = await query;
+  if (error) throw error;
+  return count ?? 0;
+}
+
+/** Record a provider/admin decision. Does not touch the booking status. */
+export async function setCargoReview(
+  id: string,
+  patch: {
+    status: CargoReviewStatus;
+    note: string;
+    reviewedAt: string;
+    reviewerId: string;
+    updatedAt: string;
+  },
+): Promise<Booking | undefined> {
+  const { data, error } = await (
+    await dbAsync()
+  )
+    .from("bookings")
+    .update({
+      review_status: patch.status,
+      review_note: patch.note,
+      reviewed_at: patch.reviewedAt,
+      reviewer_id: patch.reviewerId,
+      updated_at: patch.updatedAt,
+    })
     .eq("id", id)
     .select("*")
     .maybeSingle();

@@ -147,16 +147,3 @@ export function RoleBadge({ role }: { role: "trader" | "provider" | "admin" }) {
     </Badge>
   );
 }
-
-export const MODULE_NAV = [
-  { to: "/verification", label: "Provider Verification" },
-  { to: "/routes", label: "Container & Route Management" },
-  { to: "/aggregation", label: "Cargo Space Aggregation" },
-  { to: "/catalog", label: "Cargo Search & Booking" },
-  { to: "/bookings", label: "Booking Management" },
-  { to: "/loading", label: "3D Load Planner" },
-  { to: "/payments", label: "Payment & Escrow" },
-  { to: "/messages", label: "Communication & Notifications" },
-  { to: "/admin", label: "Admin Dashboard" },
-  { to: "/reports", label: "Reports & AI Enhancements" },
-] as const;

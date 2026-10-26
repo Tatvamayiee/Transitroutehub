@@ -12,6 +12,8 @@ import {
   serverAllBookings,
   serverBookingDetails,
   serverCancelBooking,
+  serverCargoPendingCount,
+  serverCargoReviewQueue,
   serverCreateBooking,
   serverCreateContainer,
   serverCreateLane,
@@ -43,11 +45,14 @@ import {
   serverProviderBookings,
   serverRefundEscrow,
   serverReleaseEscrow,
+  serverReopenCargoPhoto,
+  serverReviewCargoPhoto,
   serverReviewVerification,
   serverSearchSpace,
   serverSendMessage,
   serverSetUserRole,
   serverStartThread,
+  serverSubmitCargoPhoto,
   serverSubmitVerification,
   serverUpdateBookingStatus,
   serverUpdateContainer,
@@ -58,6 +63,7 @@ import type {
   AuditEvent,
   BookingStatus,
   BookingView,
+  CargoReviewDecision,
   CapacitySummary,
   Container,
   ContainerStatus,
@@ -84,6 +90,7 @@ export type {
   AuditEvent,
   BookingStatus,
   BookingView,
+  CargoReviewDecision,
   CapacitySummary,
   Container,
   Insight,
@@ -172,6 +179,42 @@ export const updateBookingStatus = (data: {
 
 export const cancelBooking = (data: { token: string; bookingId: string; reason: string }) =>
   serverCancelBooking({ data });
+
+// ---------------- cargo photos ----------------
+
+export const submitCargoPhoto = (data: {
+  token: string;
+  bookingId: string;
+  label: string;
+  contentType: "image/jpeg" | "image/png" | "image/webp";
+  dataBase64: string;
+}) => serverSubmitCargoPhoto({ data });
+
+export const reviewCargoPhoto = (data: {
+  token: string;
+  bookingId: string;
+  decision: CargoReviewDecision;
+  note: string;
+}) => serverReviewCargoPhoto({ data });
+
+export const reopenCargoPhoto = (data: { token: string; bookingId: string; note: string }) =>
+  serverReopenCargoPhoto({ data });
+
+export const cargoReviewQueue = (token: string) => serverCargoReviewQueue({ data: { token } });
+
+/** Photos awaiting this provider's decision — powers the navigation badge. */
+export const cargoPendingCount = (token: string) => serverCargoPendingCount({ data: { token } });
+
+/**
+ * Fired after any cargo-photo change so the header badge and open lists can
+ * refresh without polling.
+ */
+export const CARGO_CHANGED_EVENT = "trh:cargo-changed";
+
+export function announceCargoChange(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(CARGO_CHANGED_EVENT));
+}
 
 // ---------------- payments & escrow ----------------
 

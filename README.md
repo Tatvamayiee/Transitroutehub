@@ -21,6 +21,24 @@ npm i
 npm run dev
 ```
 
+## Database migrations
+
+`supabase/migrations/` holds the schema. `0001_init.sql` is already applied and
+must not be edited — add a new numbered file instead, then apply it with:
+
+```sh
+node scripts/apply-migration.mjs supabase/migrations/0002_cargo_photo_review.sql
+```
+
+Every migration is written to be idempotent, so re-running it is safe. The
+script connects with `SUPABASE_URL` / `SUPABASE_PASSWD` from `.env` and falls
+back to the Supavisor pooler when the direct host is IPv6-only.
+
+## Feature docs
+
+- [Cargo photo upload & provider review](docs/cargo-photo-review.md) — schema,
+  private storage bucket and policies, server rules, and known limitations.
+
 ## Built with
 
 - TanStack Start
