@@ -21,9 +21,7 @@ import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as LoadingRouteImport } from './routes/loading'
 import { Route as MessagesRouteImport } from './routes/messages'
 import { Route as PaymentsRouteImport } from './routes/payments'
-import { Route as ReadinessRouteImport } from './routes/readiness'
 import { Route as ReportsRouteImport } from './routes/reports'
-import { Route as ReviewRouteImport } from './routes/review'
 import { Route as RoutesRouteImport } from './routes/routes'
 import { Route as VerificationRouteImport } from './routes/verification'
 
@@ -87,19 +85,9 @@ const PaymentsRoute = PaymentsRouteImport.update({
   path: '/payments',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ReadinessRoute = ReadinessRouteImport.update({
-  id: '/readiness',
-  path: '/readiness',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ReportsRoute = ReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ReviewRoute = ReviewRouteImport.update({
-  id: '/review',
-  path: '/review',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RoutesRoute = RoutesRouteImport.update({
@@ -126,9 +114,7 @@ export interface FileRoutesByFullPath {
   '/loading': typeof LoadingRoute
   '/messages': typeof MessagesRoute
   '/payments': typeof PaymentsRoute
-  '/readiness': typeof ReadinessRoute
   '/reports': typeof ReportsRoute
-  '/review': typeof ReviewRoute
   '/routes': typeof RoutesRoute
   '/verification': typeof VerificationRoute
 }
@@ -145,9 +131,7 @@ export interface FileRoutesByTo {
   '/loading': typeof LoadingRoute
   '/messages': typeof MessagesRoute
   '/payments': typeof PaymentsRoute
-  '/readiness': typeof ReadinessRoute
   '/reports': typeof ReportsRoute
-  '/review': typeof ReviewRoute
   '/routes': typeof RoutesRoute
   '/verification': typeof VerificationRoute
 }
@@ -165,9 +149,7 @@ export interface FileRoutesById {
   '/loading': typeof LoadingRoute
   '/messages': typeof MessagesRoute
   '/payments': typeof PaymentsRoute
-  '/readiness': typeof ReadinessRoute
   '/reports': typeof ReportsRoute
-  '/review': typeof ReviewRoute
   '/routes': typeof RoutesRoute
   '/verification': typeof VerificationRoute
 }
@@ -186,9 +168,7 @@ export interface FileRouteTypes {
     | '/loading'
     | '/messages'
     | '/payments'
-    | '/readiness'
     | '/reports'
-    | '/review'
     | '/routes'
     | '/verification'
   fileRoutesByTo: FileRoutesByTo
@@ -205,9 +185,7 @@ export interface FileRouteTypes {
     | '/loading'
     | '/messages'
     | '/payments'
-    | '/readiness'
     | '/reports'
-    | '/review'
     | '/routes'
     | '/verification'
   id:
@@ -224,9 +202,7 @@ export interface FileRouteTypes {
     | '/loading'
     | '/messages'
     | '/payments'
-    | '/readiness'
     | '/reports'
-    | '/review'
     | '/routes'
     | '/verification'
   fileRoutesById: FileRoutesById
@@ -244,9 +220,7 @@ export interface RootRouteChildren {
   LoadingRoute: typeof LoadingRoute
   MessagesRoute: typeof MessagesRoute
   PaymentsRoute: typeof PaymentsRoute
-  ReadinessRoute: typeof ReadinessRoute
   ReportsRoute: typeof ReportsRoute
-  ReviewRoute: typeof ReviewRoute
   RoutesRoute: typeof RoutesRoute
   VerificationRoute: typeof VerificationRoute
 }
@@ -337,25 +311,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PaymentsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/readiness': {
-      id: '/readiness'
-      path: '/readiness'
-      fullPath: '/readiness'
-      preLoaderRoute: typeof ReadinessRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/reports': {
       id: '/reports'
       path: '/reports'
       fullPath: '/reports'
       preLoaderRoute: typeof ReportsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/review': {
-      id: '/review'
-      path: '/review'
-      fullPath: '/review'
-      preLoaderRoute: typeof ReviewRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/routes': {
@@ -388,9 +348,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoadingRoute: LoadingRoute,
   MessagesRoute: MessagesRoute,
   PaymentsRoute: PaymentsRoute,
-  ReadinessRoute: ReadinessRoute,
   ReportsRoute: ReportsRoute,
-  ReviewRoute: ReviewRoute,
   RoutesRoute: RoutesRoute,
   VerificationRoute: VerificationRoute,
 }
