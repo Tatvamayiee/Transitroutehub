@@ -136,7 +136,7 @@ function LoadingPage() {
       <ModuleHeader
         icon={Boxes}
         title="3D container load plan"
-        description="Your booked volume becomes a real pallet plan: auto-pack it, then drag any package to adjust the load. Placements are validated on the server so nothing can overlap."
+        description="Your booked volume becomes a real pallet plan: auto-pack it, then drag any package to adjust the load. Placements are validated on the server so nothing can overlap, and the provider on the booking is notified whenever the plan changes."
         actions={
           <>
             <StatusPill label={ROLE_LABELS[user.role]} tone="info" />
@@ -199,6 +199,7 @@ function LoadingPage() {
 }
 
 function LoadPlanPanel({ token, bookingId }: { token: string; bookingId: string }) {
+  const user = useCurrentUser();
   const query = useServerData<LoadPlan>(`load-plan:${token}:${bookingId}`, () =>
     loadPlan(token, bookingId),
   );
@@ -308,7 +309,16 @@ function LoadPlanPanel({ token, bookingId }: { token: string; bookingId: string 
               <CardDescription>
                 {plan.spec.lengthCm} × {plan.spec.widthCm} × {plan.spec.heightCm} cm interior · drag
                 to orbit, scroll to zoom, drag a package to move it
+                {plan.lastPackedAt ? (
+                  <> · last updated {new Date(plan.lastPackedAt).toLocaleString()}</>
+                ) : null}
               </CardDescription>
+              {user?.role === "provider" || user?.role === "admin" ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {plan.traderName}&apos;s placement for this booking — the same boxes they arranged
+                  in the 3D planner. You can adjust the load here too.
+                </p>
+              ) : null}
             </div>
             <div className="flex flex-wrap gap-1.5">
               {(["iso", "top", "side", "doors"] as ViewPreset[]).map((view) => (

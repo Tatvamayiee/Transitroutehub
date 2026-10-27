@@ -7,6 +7,7 @@ import { boundsOverlap, placedBounds } from "@/domain/loading";
 import type { CargoBox } from "@/domain/loading";
 import { loginUser } from "@/server/services/auth";
 import { myBookings } from "@/server/services/data";
+import { listNotifications } from "@/server/services/modules";
 import {
   addCargoBox,
   autoPackBooking,
@@ -31,6 +32,15 @@ async function token(email: string): Promise<string> {
   const result = await loginUser({ email, password: "demo1234" });
   if (!result.ok) throw new Error(`login failed for ${email}: ${result.message}`);
   return result.value.token;
+}
+
+/** Load-plan notifications a user holds for one booking, oldest first. */
+async function planNotices(tok: string, bookingId: string) {
+  const result = await listNotifications(tok);
+  if (!result.ok) throw new Error(result.message);
+  return result.value.filter(
+    (n) => n.title === "3D load plan updated" && n.link === `/loading?booking=${bookingId}`,
+  );
 }
 
 function noOverlaps(boxes: CargoBox[]): boolean {
@@ -64,6 +74,9 @@ function insideSpec(
 }
 
 async function main() {
+  // Announce every change so the coalescing window cannot hide one from the checks.
+  process.env["LOAD_PLAN_NOTICE_COOLDOWN_MS"] = "0";
+
   const trader = await token("trader@trh.demo");
   const provider = await token("provider@trh.demo");
   const otherTrader = await token("shipper@trh.demo");
@@ -128,6 +141,9 @@ async function main() {
   check("invalid token is refused", !anon.ok && anon.code === "UNAUTHORIZED");
 
   // ---- add / move / remove ----
+  const providerNoticesBefore = (await planNotices(provider, bookingId)).length;
+  const traderNoticesBefore = (await planNotices(trader, bookingId)).length;
+
   const added = await addCargoBox(trader, bookingId, {
     label: "Test crate",
     lengthCm: 80,
@@ -140,6 +156,27 @@ async function main() {
   check("added package appears in the plan", added.value.boxes.length === plan.boxes.length + 1);
   const newBox = added.value.boxes.find((box) => box.label === "Test crate");
   check("added package gets a placement", Boolean(newBox?.placement));
+
+  // The trader placing cargo is what the provider has to load, so it must reach them.
+  const providerNotices = await planNotices(provider, bookingId);
+  const traderNotices = await planNotices(trader, bookingId);
+  check(
+    "provider is notified when the trader places cargo",
+    providerNotices.length === providerNoticesBefore + 1 &&
+      providerNotices.some((n) => n.body.includes("Test crate")),
+    `${providerNotices.length - providerNoticesBefore} notices`,
+  );
+  check(
+    "trader is not notified about their own edit",
+    traderNotices.length === traderNoticesBefore,
+    `${traderNotices.length - traderNoticesBefore} notices`,
+  );
+  check(
+    "the placement stamps the booking as freshly packed",
+    Boolean(added.value.lastPackedAt) &&
+      Date.now() - Date.parse(added.value.lastPackedAt as string) < 60_000,
+    added.value.lastPackedAt ?? "null",
+  );
 
   const oversized = await addCargoBox(trader, bookingId, {
     label: "Too big",
@@ -158,11 +195,24 @@ async function main() {
         ...blocker.placement,
         rotated: false,
       });
-      check(
-        "moving onto another package is rejected",
-        !clash.ok && clash.code === "PLACEMENT_INVALID",
-        clash.ok ? "accepted" : clash.code,
-      );
+      if (clash.ok) {
+        // Stacking is intended: the service lifts the package to the first clear
+        // height above the obstruction, so it must land on top, never inside it.
+        const landed = clash.value.boxes.find((box) => box.id === newBox.id);
+        const blockerBox = clash.value.boxes.find((box) => box.id === blocker.id);
+        check(
+          "moving onto another package stacks it on top",
+          Boolean(landed?.placement) &&
+            (landed?.placement?.yCm ?? 0) >=
+              (blockerBox?.placement?.yCm ?? 0) + (blockerBox?.heightCm ?? 0),
+          `y=${landed?.placement?.yCm} vs blocker top ${(
+            (blockerBox?.placement?.yCm ?? 0) + (blockerBox?.heightCm ?? 0)
+          ).toFixed(0)}`,
+        );
+        check("stacked layout has no overlaps", noOverlaps(clash.value.boxes));
+      } else {
+        check("an unstackable move is rejected", clash.code === "PLACEMENT_INVALID", clash.code);
+      }
     }
 
     const outside = await moveCargoBox(trader, newBox.id, {
@@ -189,6 +239,23 @@ async function main() {
       check("rotated flag persists", rotated?.placement?.rotated === true);
       check("layout stays valid after a move", noOverlaps(moved.value.boxes));
     }
+
+    // A provider adjusting the load tells the trader back.
+    const providerMoved = await moveCargoBox(provider, newBox.id, {
+      ...newBox.placement,
+      xCm: Math.min(added.value.spec.lengthCm - 1, newBox.placement.xCm + 10),
+    });
+    const traderNoticesAfterProvider = await planNotices(trader, bookingId);
+    check(
+      "provider can adjust the trader's placement",
+      providerMoved.ok || providerMoved.code === "PLACEMENT_INVALID",
+      providerMoved.ok ? "moved" : providerMoved.message,
+    );
+    check(
+      "trader is notified when the provider adjusts the load",
+      traderNoticesAfterProvider.length === traderNoticesBefore + 1,
+      `${traderNoticesAfterProvider.length - traderNoticesBefore} notices`,
+    );
 
     const removed = await removeCargoBox(trader, newBox.id);
     check(

@@ -4,6 +4,8 @@
  * Traders (and the provider on the booking) can build the cargo list for a shipment,
  * let the solver load it, then nudge individual packages by hand. Every placement is
  * validated server-side, so a stale client cannot stack two boxes in the same space.
+ * Each change notifies the other side of the booking, so a provider sees the moment a
+ * trader starts placing cargo without polling the planner.
  *
  * Backed by Supabase Postgres (async repository) — see src/server/db/repo/*.
  */
@@ -31,6 +33,8 @@ import {
   findLaneById,
   findUserById,
   newId,
+  nowIso,
+  notify,
   recordAudit,
 } from "@/server/store";
 
@@ -139,6 +143,64 @@ function sanitizePlacement(spec: ContainerSpec, placement: Placement): Placement
   };
 }
 
+// ---------------- counterparty notification ----------------
+
+// A drag fires one request per gesture; coalesce them so a trader arranging a load
+// does not bury the provider in a notification per nudge. Best effort by design: a
+// restart or a second instance can only mean one extra notification, never a missed
+// change, because the load plan itself always carries the latest placements.
+const DEFAULT_NOTICE_COOLDOWN_MS = 2 * 60_000;
+const lastPlanNoticeAt = new Map<string, number>();
+
+/** Overridable for verification runs that need every change announced. */
+function noticeCooldownMs(): number {
+  const raw = process.env["LOAD_PLAN_NOTICE_COOLDOWN_MS"];
+  const parsed = raw === undefined ? Number.NaN : Number(raw);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : DEFAULT_NOTICE_COOLDOWN_MS;
+}
+
+/**
+ * Tells the other side of the booking that the 3D plan changed. Cargo a trader places
+ * is exactly what the provider has to load, so every change reaches the provider; a
+ * provider's own adjustment reaches the trader back. The actor never hears about
+ * their own edit, and admins notify both parties.
+ */
+async function announcePlanChange(
+  user: { id: string; name: string; role: "trader" | "provider" | "admin" },
+  resolved: Resolved,
+  summary: string,
+  coalesce = false,
+): Promise<void> {
+  const { booking } = resolved;
+  const recipients = [...new Set([booking.userId, booking.providerId])].filter(
+    (id) => id !== user.id,
+  );
+  if (recipients.length === 0) return;
+  const now = Date.now();
+  if (coalesce) {
+    const last = lastPlanNoticeAt.get(booking.id) ?? 0;
+    if (now - last < noticeCooldownMs()) return;
+  }
+  lastPlanNoticeAt.set(booking.id, now);
+  const link = `/loading?booking=${booking.id}`;
+  for (const recipientId of recipients) {
+    await notify(
+      recipientId,
+      "booking",
+      "3D load plan updated",
+      `${user.name} ${summary}. Open the load planner to see the current placements.`,
+      link,
+    );
+  }
+}
+
+/** Placement edits are booking activity, so "last packed" reflects reality. */
+async function touchBooking(resolved: Resolved): Promise<void> {
+  const stamp = nowIso();
+  await repoBookings.updateBookingFields(resolved.booking.id, { updatedAt: stamp });
+  resolved.booking = { ...resolved.booking, updatedAt: stamp };
+}
+
 // ---------------- read ----------------
 
 export async function getLoadPlan(token: string, bookingId: string): Promise<Result<LoadPlan>> {
@@ -217,6 +279,12 @@ export async function addCargoBox(
   box.placement = findDropSlot(resolved.spec, existing, box);
   await repoBookings.insertCargoBox(box);
   await recordAudit(user, "loading.add-cargo", `${resolved.container.label} · ${box.label}`);
+  await touchBooking(resolved);
+  await announcePlanChange(
+    user,
+    resolved,
+    `added ${box.label} to the load plan for booking ${bookingId}`,
+  );
   return success(await buildPlan(resolved));
 }
 
@@ -271,6 +339,8 @@ export async function updateCargoBox(
     placement: next.placement,
   });
   await recordAudit(user, "loading.update-cargo", `${resolved.container.label} · ${next.label}`);
+  await touchBooking(resolved);
+  await announcePlanChange(user, resolved, `updated ${next.label} in the load plan`);
   return success(await buildPlan(resolved));
 }
 
@@ -287,6 +357,8 @@ export async function removeCargoBox(token: string, boxId: string): Promise<Resu
   }
   await repoBookings.deleteCargoBox(boxId);
   await recordAudit(user, "loading.remove-cargo", `${resolved.container.label} · ${box.label}`);
+  await touchBooking(resolved);
+  await announcePlanChange(user, resolved, `removed ${box.label} from the load plan`);
   return success(await buildPlan(resolved));
 }
 
@@ -323,6 +395,13 @@ export async function moveCargoBox(
   }
 
   await repoBookings.updateCargoBoxPlacement(box.id, next);
+  await touchBooking(resolved);
+  await announcePlanChange(
+    user,
+    resolved,
+    `moved ${box.label} inside ${resolved.container.label}`,
+    true,
+  );
   return success(await buildPlan(resolved));
 }
 
@@ -364,6 +443,12 @@ export async function autoPackBooking(token: string, bookingId: string): Promise
     "loading.auto-pack",
     `${resolved.container.label} (${boxes.length} packages)`,
   );
+  await touchBooking(resolved);
+  await announcePlanChange(
+    user,
+    resolved,
+    `auto-packed ${boxes.length} packages into ${resolved.container.label}`,
+  );
   return success(await buildPlan(resolved));
 }
 
@@ -380,5 +465,7 @@ export async function resetLoadPlan(token: string, bookingId: string): Promise<R
   await repoBookings.deleteCargoBoxesForBooking(bookingId);
   await ensureCargo(resolved);
   await recordAudit(user, "loading.reset", resolved.container.label);
+  await touchBooking(resolved);
+  await announcePlanChange(user, resolved, `reset the load plan for ${resolved.container.label}`);
   return success(await buildPlan(resolved));
 }
