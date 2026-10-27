@@ -8,6 +8,7 @@
 
 import { CODE, failure, success } from "@/domain/results";
 import type { Result } from "@/domain/results";
+import { formatMoney } from "@/lib/money";
 import type {
   AdminUserView,
   AuditEvent,
@@ -131,12 +132,12 @@ export async function fundEscrow(token: string, bookingId: string): Promise<Resu
     status: "funded",
     updatedAt: nowIso(),
   });
-  await recordAudit(user, "escrow.fund", `${bookingId} (€${payment.amount.toFixed(2)})`);
+  await recordAudit(user, "escrow.fund", `${bookingId} (${formatMoney(payment.amount)})`);
   await notify(
     booking.providerId,
     "payment",
     "Escrow funded",
-    `€${payment.amount.toFixed(2)} is now held for booking ${bookingId}.`,
+    `${formatMoney(payment.amount)} is now held for booking ${bookingId}.`,
     "/payments",
   );
   return success(updated ?? { ...payment, status: "funded" });
@@ -168,12 +169,12 @@ export async function releaseEscrow(token: string, bookingId: string): Promise<R
       updatedAt: stamp,
     });
   }
-  await recordAudit(user, "escrow.release", `${bookingId} (€${payment.amount.toFixed(2)})`);
+  await recordAudit(user, "escrow.release", `${bookingId} (${formatMoney(payment.amount)})`);
   await notify(
     booking.providerId,
     "payment",
     "Escrow released",
-    `€${payment.amount.toFixed(2)} has been released to you.`,
+    `${formatMoney(payment.amount)} has been released to you.`,
     "/payments",
   );
   return success(updated ?? { ...payment, status: "released" });
@@ -195,12 +196,12 @@ export async function refundEscrow(token: string, bookingId: string): Promise<Re
     status: "refunded",
     updatedAt: nowIso(),
   });
-  await recordAudit(user, "escrow.refund", `${bookingId} (€${payment.amount.toFixed(2)})`);
+  await recordAudit(user, "escrow.refund", `${bookingId} (${formatMoney(payment.amount)})`);
   await notify(
     payment.traderId,
     "payment",
     "Escrow refunded",
-    `€${payment.amount.toFixed(2)} was returned for booking ${bookingId}.`,
+    `${formatMoney(payment.amount)} was returned for booking ${bookingId}.`,
     "/payments",
   );
   return success(updated ?? { ...payment, status: "refunded" });
@@ -833,7 +834,7 @@ export async function listInsights(token: string): Promise<Result<Insight[]>> {
       title: `${staleUnfunded.length} booking(s) without funded escrow`,
       detail:
         "These bookings have been confirmed for more than 3 days with no escrow funded. Shipment risk is unsecured.",
-      metric: `€${round(staleUnfunded.reduce((sum, p) => sum + p.amount, 0)).toFixed(2)} at risk`,
+      metric: `${formatMoney(round(staleUnfunded.reduce((sum, p) => sum + p.amount, 0)))} at risk`,
       action: "Chase the trader or cancel the booking",
     });
   }
@@ -846,7 +847,7 @@ export async function listInsights(token: string): Promise<Result<Insight[]>> {
       title: "Escrow balance awaiting release",
       detail:
         "Funded escrow is held until the trader confirms delivery and releases it. Settling completed shipments improves provider cash flow and trust.",
-      metric: `€${escrowHeld.toFixed(2)} held`,
+      metric: `${formatMoney(escrowHeld)} held`,
       action: "Review the payments ledger",
     });
   }

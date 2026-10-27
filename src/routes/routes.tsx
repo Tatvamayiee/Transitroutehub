@@ -508,7 +508,7 @@ function NewContainerForm({
         />
       </div>
       <div className="grid gap-2">
-        <Label htmlFor="c-price">Price per m³ (€)</Label>
+        <Label htmlFor="c-price">Price per m³ (₹)</Label>
         <Input
           id="c-price"
           type="number"
@@ -565,7 +565,7 @@ function ContainerTable({
           <TableHead>Container</TableHead>
           <TableHead className="text-right">Capacity</TableHead>
           <TableHead className="w-32">Available m³</TableHead>
-          <TableHead className="w-28">€/m³</TableHead>
+          <TableHead className="w-28">₹/m³</TableHead>
           <TableHead className="w-32">Status</TableHead>
           <TableHead className="text-right">Save</TableHead>
         </TableRow>

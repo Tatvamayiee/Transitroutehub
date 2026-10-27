@@ -22,6 +22,7 @@ import {
 } from "@/components/module-kit";
 import { CargoPhotoDialog, CargoPhotoPill } from "@/components/cargo-photo";
 import { cargoReviewQueue, useServerData, type BookingView } from "@/lib/api";
+import { formatMoney } from "@/lib/money";
 import { ROLE_LABELS, useCurrentUser, useToken } from "@/lib/auth";
 import { MODE_LABELS } from "@/domain/types";
 
@@ -247,8 +248,8 @@ function PhotoGrid({
               </CardTitle>
               <CardDescription>
                 {tradeLabel(row)} · <span className="font-mono">{container.label}</span> ·{" "}
-                {MODE_LABELS[lane.mode]} · {booking.requestedM3.toFixed(2)} m³ · €
-                {amount.toFixed(2)}
+                {MODE_LABELS[lane.mode]} · {booking.requestedM3.toFixed(2)} m³ ·{" "}
+                {formatMoney(amount)}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 pt-0">

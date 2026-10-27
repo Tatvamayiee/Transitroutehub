@@ -23,7 +23,7 @@ export type MapLane = {
   origin: string;
   destination: string;
   mode: RouteMode;
-  /** Short detail shown in the popup, e.g. "72% utilised · from €74/m³". */
+  /** Short detail shown in the popup, e.g. "72% utilised · from ₹74/m³". */
   badge?: string;
 };
 

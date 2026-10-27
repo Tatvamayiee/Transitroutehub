@@ -35,6 +35,7 @@ import {
 import { ROLE_LABELS, useCurrentUser, useToken } from "@/lib/auth";
 import { BOOKING_STATUS_LABELS, MODE_LABELS } from "@/domain/types";
 import { CargoPhotoDialog, CargoPhotoPill } from "@/components/cargo-photo";
+import { formatMoney } from "@/lib/money";
 
 export const Route = createFileRoute("/bookings")({
   head: () => ({
@@ -135,10 +136,11 @@ function BookingsPage() {
         />
         <StatCard
           label="Escrow held"
-          value={`€${activeRows
-            .filter((r) => r.paymentStatus === "funded")
-            .reduce((sum, r) => sum + r.amount, 0)
-            .toFixed(2)}`}
+          value={formatMoney(
+            activeRows
+              .filter((r) => r.paymentStatus === "funded")
+              .reduce((sum, r) => sum + r.amount, 0),
+          )}
           hint="Funds awaiting release"
         />
       </div>

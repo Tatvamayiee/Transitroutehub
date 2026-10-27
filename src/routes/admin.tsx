@@ -46,6 +46,7 @@ import {
   type VerificationView,
 } from "@/lib/api";
 import { useCurrentUser, useToken } from "@/lib/auth";
+import { formatMoney } from "@/lib/money";
 import { VERIFICATION_LABELS } from "@/domain/types";
 import type { VerificationStatus } from "@/domain/types";
 
@@ -190,8 +191,10 @@ function AdminPage() {
             />
             <StatCard
               label="Escrow held"
-              value={`€${metrics.escrowHeld.toFixed(2)}`}
-              hint={`€${metrics.released.toFixed(2)} released · €${metrics.refunded.toFixed(2)} refunded`}
+              value={formatMoney(metrics.escrowHeld)}
+              hint={`${formatMoney(metrics.released)} released · ${formatMoney(
+                metrics.refunded,
+              )} refunded`}
               icon={Activity}
             />
           </div>

@@ -31,6 +31,7 @@ import {
   type BookingView,
 } from "@/lib/api";
 import { ROLE_LABELS, useCurrentUser, useToken } from "@/lib/auth";
+import { formatMoney } from "@/lib/money";
 import { PAYMENT_STATUS_LABELS } from "@/domain/types";
 import type { PaymentStatus } from "@/domain/types";
 
@@ -93,7 +94,7 @@ function PaymentsPage() {
       toast.error(result.message);
       return;
     }
-    toast.success(`${label} — €${result.value.amount.toFixed(2)}.`);
+    toast.success(`${label} — ${formatMoney(result.value.amount)}.`);
     ledger.reload();
   }
 
@@ -119,28 +120,29 @@ function PaymentsPage() {
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
         <StatCard
           label="Held in escrow"
-          value={`€${rows
-            .filter((r) => r.paymentStatus === "funded")
-            .reduce((sum, r) => sum + r.amount, 0)
-            .toFixed(2)}`}
+          value={formatMoney(
+            rows.filter((r) => r.paymentStatus === "funded").reduce((sum, r) => sum + r.amount, 0),
+          )}
           hint="Awaiting delivery confirmation"
           icon={Lock}
         />
         <StatCard
           label="Released"
-          value={`€${rows
-            .filter((r) => r.paymentStatus === "released")
-            .reduce((sum, r) => sum + r.amount, 0)
-            .toFixed(2)}`}
+          value={formatMoney(
+            rows
+              .filter((r) => r.paymentStatus === "released")
+              .reduce((sum, r) => sum + r.amount, 0),
+          )}
           hint="Paid out to providers"
           icon={ShieldCheck}
         />
         <StatCard
           label="Refunded"
-          value={`€${rows
-            .filter((r) => r.paymentStatus === "refunded")
-            .reduce((sum, r) => sum + r.amount, 0)
-            .toFixed(2)}`}
+          value={formatMoney(
+            rows
+              .filter((r) => r.paymentStatus === "refunded")
+              .reduce((sum, r) => sum + r.amount, 0),
+          )}
           hint="Returned after cancellation"
         />
       </div>
@@ -216,7 +218,7 @@ function PaymentsPage() {
                           </div>
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                          €{amount.toFixed(2)}
+                          {formatMoney(amount)}
                         </TableCell>
                         <TableCell>
                           <StatusPill

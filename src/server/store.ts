@@ -23,6 +23,7 @@ import type {
   User,
   UserRole,
 } from "@/domain/types";
+import { CURRENCY_CODE, formatMoney } from "@/lib/money";
 import { dbAsync } from "@/server/db/client";
 import * as repoUsers from "@/server/db/repo/users";
 import * as repoCatalog from "@/server/db/repo/catalog";
@@ -531,7 +532,7 @@ async function seed(): Promise<void> {
       traderId,
       providerId: container.providerId,
       amount: escrowAmountFor(container, requestedM3),
-      currency: "EUR",
+      currency: CURRENCY_CODE,
       status: status === "confirmed" || status === "in_transit" ? "funded" : "unfunded",
       createdAt: stamp,
       updatedAt: stamp,
@@ -556,7 +557,7 @@ async function seed(): Promise<void> {
       traderId,
       "payment",
       "Escrow funded",
-      `€${payment.amount.toFixed(2)} is held in escrow until delivery is confirmed.`,
+      `${formatMoney(payment.amount)} is held in escrow until delivery is confirmed.`,
       "/payments",
     );
   };

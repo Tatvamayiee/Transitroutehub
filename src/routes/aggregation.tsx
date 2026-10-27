@@ -30,6 +30,7 @@ import {
   type Lane,
 } from "@/lib/api";
 import { useCurrentUser, useToken } from "@/lib/auth";
+import { formatMoney } from "@/lib/money";
 import { NetworkMap, type MapLane, type MapShipment } from "@/components/network-map";
 import { MODE_LABELS } from "@/domain/types";
 
@@ -244,7 +245,7 @@ function AggregationPage() {
                       <TableHead className="text-right">Containers</TableHead>
                       <TableHead className="text-right">Capacity</TableHead>
                       <TableHead className="text-right">Free</TableHead>
-                      <TableHead className="text-right">From €/m³</TableHead>
+                      <TableHead className="text-right">From ₹/m³</TableHead>
                       <TableHead className="w-40">Utilisation</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -268,7 +269,7 @@ function AggregationPage() {
                           {row.availableM3.toFixed(1)}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                          €{row.cheapestPricePerM3.toFixed(2)}
+                          {formatMoney(row.cheapestPricePerM3)}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">

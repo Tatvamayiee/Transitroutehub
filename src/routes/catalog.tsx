@@ -30,6 +30,7 @@ import {
 } from "@/components/module-kit";
 import { createBooking, searchSpace, type RouteMode, type SpaceListing } from "@/lib/api";
 import { ROLE_LABELS, useCurrentUser, useToken } from "@/lib/auth";
+import { formatMoney } from "@/lib/money";
 import { MODE_LABELS } from "@/domain/types";
 
 export const Route = createFileRoute("/catalog")({
@@ -179,7 +180,7 @@ function CatalogPage() {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="f-price">Max €/m³</Label>
+              <Label htmlFor="f-price">Max ₹/m³</Label>
               <Input
                 id="f-price"
                 type="number"
@@ -241,7 +242,7 @@ function CatalogPage() {
                   <TableHead>Container</TableHead>
                   <TableHead>Provider</TableHead>
                   <TableHead className="text-right">Available</TableHead>
-                  <TableHead className="text-right">€/m³</TableHead>
+                  <TableHead className="text-right">₹/m³</TableHead>
                   <TableHead className="text-right">Book m³</TableHead>
                 </TableRow>
               </TableHeader>
@@ -275,7 +276,7 @@ function CatalogPage() {
                       {container.availableM3.toFixed(2)}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      €{container.pricePerM3.toFixed(2)}
+                      {formatMoney(container.pricePerM3)}
                     </TableCell>
                     <TableCell className="text-right">
                       <BookRow

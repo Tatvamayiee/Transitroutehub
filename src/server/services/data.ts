@@ -7,6 +7,7 @@
 
 import { CODE, failure, success } from "@/domain/results";
 import type { Result } from "@/domain/results";
+import { CURRENCY_CODE, formatMoney } from "@/lib/money";
 import type {
   Booking,
   BookingStatus,
@@ -471,7 +472,7 @@ export async function createBooking(
     traderId: user.id,
     providerId: container.providerId,
     amount,
-    currency: "EUR",
+    currency: CURRENCY_CODE,
     status: "unfunded",
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -496,7 +497,7 @@ export async function createBooking(
     user.id,
     "payment",
     "Escrow ready to fund",
-    `€${amount.toFixed(2)} is held once you fund escrow, released on delivery.`,
+    `${formatMoney(amount)} is held once you fund escrow, released on delivery.`,
     "/payments",
   );
   await recordAudit(user, "booking.create", container.label);

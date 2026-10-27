@@ -32,6 +32,7 @@ import {
   type ReportPayload,
 } from "@/lib/api";
 import { useCurrentUser, useToken } from "@/lib/auth";
+import { formatMoney } from "@/lib/money";
 
 export const Route = createFileRoute("/reports")({
   head: () => ({
@@ -177,8 +178,8 @@ function ReportsPage() {
             />
             <StatCard
               label="Gross value"
-              value={`€${data.summary.grossValue.toFixed(2)}`}
-              hint={`€${data.summary.escrowHeld.toFixed(2)} still in escrow`}
+              value={formatMoney(data.summary.grossValue)}
+              hint={`${formatMoney(data.summary.escrowHeld)} still in escrow`}
             />
             <StatCard
               label="Avg utilisation"
@@ -188,7 +189,7 @@ function ReportsPage() {
             <StatCard
               label="Cancellation rate"
               value={`${data.summary.cancellationRatePct.toFixed(1)}%`}
-              hint={`€${data.summary.refunded.toFixed(2)} refunded`}
+              hint={`${formatMoney(data.summary.refunded)} refunded`}
             />
           </div>
 
@@ -272,7 +273,7 @@ function ReportsPage() {
                           {lane.bookedM3.toFixed(1)}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                          €{lane.value.toFixed(2)}
+                          {formatMoney(lane.value)}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
@@ -317,7 +318,7 @@ function ReportsPage() {
                           {row.shippedM3.toFixed(1)}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                          €{row.value.toFixed(2)}
+                          {formatMoney(row.value)}
                         </TableCell>
                       </TableRow>
                     ))}

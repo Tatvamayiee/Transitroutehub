@@ -35,6 +35,14 @@ Every migration is written to be idempotent, so re-running it is safe. The
 script connects with `SUPABASE_URL` / `SUPABASE_PASSWD` from `.env` and falls
 back to the Supavisor pooler when the direct host is IPv6-only.
 
+## Money
+
+Amounts are stored as plain numbers and quoted in **rupees**: `payments.currency`
+records `INR`, and every figure is rendered through `formatMoney`
+([src/lib/money.ts](src/lib/money.ts)), which prefixes `₹` and groups digits the
+Indian way (`₹12,34,567.50`). Formatting is hand-rolled rather than left to
+`Intl.NumberFormat` so server and client render identical text.
+
 ## Feature docs
 
 - [Cargo photo upload & provider review](docs/cargo-photo-review.md) — schema,
