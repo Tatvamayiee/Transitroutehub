@@ -34,8 +34,5 @@ dist-ssr
 # local env (credentials)
 .env
 
-# local file-organization archive (junk logs, review report)
-Archive_Review/
-
 # Vercel build output (Nitro)
 .vercel/
