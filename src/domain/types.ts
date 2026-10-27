@@ -98,6 +98,41 @@ export const CARGO_REVIEW_LABELS: Record<CargoReviewStatus, string> = {
 
 export type CargoReviewDecision = "approved" | "rejected";
 
+/** Why a photo left the "current" slot. */
+export type CargoPhotoSupersedeReason = "replaced" | "reopened";
+
+export const CARGO_SUPERSEDE_LABELS: Record<CargoPhotoSupersedeReason, string> = {
+  replaced: "Replaced by a newer photograph",
+  reopened: "Reopened for review, then replaced",
+};
+
+/**
+ * An earlier version of a booking's cargo photo, archived when it was superseded
+ * so the parties can compare submissions. `reviewStatus`/`reviewNote` record the
+ * decision the photograph had at that moment (empty for one never decided).
+ */
+export type CargoPhotoHistoryEntry = {
+  id: string;
+  bookingId: string;
+  /** Storage object path — retained in the private bucket, readable by the booking's parties. */
+  path: string;
+  label: string;
+  bytes: number | null;
+  uploadedAt: string;
+  supersededAt: string;
+  reason: CargoPhotoSupersedeReason;
+  reviewStatus: CargoReviewStatus | null;
+  reviewNote: string;
+  reviewedAt: string | null;
+  reviewerId: string | null;
+};
+
+/** A history row joined with a displayable thumbnail URL and reviewer name. */
+export type CargoPhotoHistoryView = CargoPhotoHistoryEntry & {
+  url: string | null;
+  reviewerName: string | null;
+};
+
 export type PaymentStatus = "unfunded" | "funded" | "released" | "refunded";
 
 export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
@@ -242,6 +277,8 @@ export type BookingView = {
   /** Short-lived signed URL for the cargo photo, when one is attached and readable. */
   cargoPhotoUrl: string | null;
   reviewerName: string | null;
+  /** How many earlier versions are archived for this booking (compare affordance). */
+  cargoPhotoHistoryCount: number;
 };
 
 /** A booking conversation, joined with its counterparty and latest message. */

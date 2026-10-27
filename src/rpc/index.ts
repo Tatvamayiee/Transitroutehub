@@ -25,6 +25,7 @@ export {
   serverReopenCargoPhoto,
   serverCargoReviewQueue,
   serverCargoPendingCount,
+  serverCargoPhotoHistory,
 } from "@/rpc/cargo";
 
 export {

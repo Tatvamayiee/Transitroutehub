@@ -28,6 +28,7 @@ must not be edited — add a new numbered file instead, then apply it with:
 
 ```sh
 node scripts/apply-migration.mjs supabase/migrations/0002_cargo_photo_review.sql
+node scripts/apply-migration.mjs supabase/migrations/0003_cargo_photo_history.sql
 ```
 
 Every migration is written to be idempotent, so re-running it is safe. The
@@ -37,7 +38,8 @@ back to the Supavisor pooler when the direct host is IPv6-only.
 ## Feature docs
 
 - [Cargo photo upload & provider review](docs/cargo-photo-review.md) — schema,
-  private storage bucket and policies, server rules, and known limitations.
+  private storage bucket and policies, server rules, the archived history of
+  replaced photographs, and known limitations.
 
 ## Built with
 

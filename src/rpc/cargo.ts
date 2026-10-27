@@ -3,9 +3,15 @@
  */
 
 import { createServerFn } from "@tanstack/react-start";
-import { cargoPhotoUploadSchema, cargoReopenSchema, cargoReviewSchema } from "@/domain/validation";
+import {
+  cargoHistorySchema,
+  cargoPhotoUploadSchema,
+  cargoReopenSchema,
+  cargoReviewSchema,
+} from "@/domain/validation";
 import {
   cargoPendingCount,
+  cargoPhotoHistory,
   cargoReviewQueue,
   reopenCargoPhoto,
   reviewCargoPhoto,
@@ -45,6 +51,10 @@ export const serverReopenCargoPhoto = createServerFn({ method: "POST" })
 export const serverCargoReviewQueue = createServerFn({ method: "POST" })
   .validator(tokenSchema)
   .handler(({ data }) => cargoReviewQueue(data.token));
+
+export const serverCargoPhotoHistory = createServerFn({ method: "POST" })
+  .validator(cargoHistorySchema)
+  .handler(({ data }) => cargoPhotoHistory(data.token, { bookingId: data.bookingId }));
 
 export const serverCargoPendingCount = createServerFn({ method: "POST" })
   .validator(tokenSchema)

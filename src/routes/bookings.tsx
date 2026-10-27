@@ -312,6 +312,12 @@ function BookingTable({
                 <TableCell>
                   <div className="flex flex-col items-start gap-1">
                     <CargoPhotoPill status={booking.reviewStatus} />
+                    {row.cargoPhotoHistoryCount > 0 ? (
+                      <span className="text-[11px] text-muted-foreground">
+                        {row.cargoPhotoHistoryCount} earlier{" "}
+                        {row.cargoPhotoHistoryCount === 1 ? "version" : "versions"}
+                      </span>
+                    ) : null}
                     <Button
                       size="sm"
                       variant="ghost"

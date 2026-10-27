@@ -86,6 +86,8 @@ export async function paymentViews(bookingIds: string[]): Promise<BookingView[]>
         amount: payment?.amount ?? 0,
         cargoPhotoUrl: null,
         reviewerName: null,
+        // The ledger renders payment state, not photographs; no lookup here.
+        cargoPhotoHistoryCount: 0,
       } satisfies BookingView;
     }),
   );

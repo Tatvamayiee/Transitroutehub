@@ -74,6 +74,8 @@ async function toView(booking: Booking): Promise<BookingView | null> {
     amount: payment?.amount ?? escrowAmountFor(container, booking.requestedM3),
     cargoPhotoUrl: null,
     reviewerName: reviewer?.name ?? null,
+    // Filled in by attachPhotoUrls, which counts archived versions in one query.
+    cargoPhotoHistoryCount: 0,
   };
 }
 
@@ -91,19 +93,29 @@ async function viewsFor(token: string, rows: Booking[]): Promise<BookingView[]> 
 }
 
 /**
- * Mint signed URLs for every attached cargo photo in one storage call. The
- * bucket is private, so this is the only way a browser can display the image.
+ * Mint signed URLs for every attached cargo photo in one storage call, and count
+ * the archived earlier versions so the UI can offer a comparison. The bucket is
+ * private, so signed URLs are the only way a browser can display an image.
  * Exported for the cargo-photo service, which builds single views after a write.
  */
 export async function attachPhotoUrls(token: string, views: BookingView[]): Promise<BookingView[]> {
+  if (views.length === 0) return views;
   const paths = views
     .map((view) => view.booking.cargoPhotoPath)
     .filter((path): path is string => Boolean(path));
-  if (paths.length === 0) return views;
-  const urls = await signedCargoPhotoUrls(token, paths);
+  const [urls, historyCounts] = await Promise.all([
+    paths.length > 0
+      ? signedCargoPhotoUrls(token, paths)
+      : Promise.resolve(new Map<string, string>()),
+    repoBookings.countCargoPhotoHistoryFor(views.map((view) => view.booking.id)),
+  ]);
   return views.map((view) => {
     const path = view.booking.cargoPhotoPath;
-    return path ? { ...view, cargoPhotoUrl: urls.get(path) ?? null } : view;
+    return {
+      ...view,
+      cargoPhotoUrl: path ? (urls.get(path) ?? null) : view.cargoPhotoUrl,
+      cargoPhotoHistoryCount: historyCounts.get(view.booking.id) ?? 0,
+    };
   });
 }
 

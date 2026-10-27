@@ -1,6 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Camera, CheckCircle2, Clock, RefreshCw, ShieldAlert, XCircle } from "lucide-react";
+import {
+  Camera,
+  CheckCircle2,
+  Clock,
+  History,
+  RefreshCw,
+  ShieldAlert,
+  XCircle,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -250,6 +258,13 @@ function PhotoGrid({
                   Submitted {formatWhen(booking.cargoPhotoUploadedAt)} · booking{" "}
                   <span className="font-mono">{booking.id}</span>
                 </p>
+                {row.cargoPhotoHistoryCount > 0 ? (
+                  <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <History className="size-3.5" />
+                    {row.cargoPhotoHistoryCount} earlier{" "}
+                    {row.cargoPhotoHistoryCount === 1 ? "version" : "versions"} kept for comparison
+                  </p>
+                ) : null}
               </div>
               {booking.reviewStatus === "rejected" && booking.reviewNote ? (
                 <p className="rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1.5 text-xs text-destructive">

@@ -13,21 +13,76 @@
  *  - a rejection always carries a note, so the trader knows what to fix;
  *  - review never changes booking status or capacity: the photo is an advisory
  *    quality gate, so bookings without a photo (or awaiting review) keep working
- *    exactly as before and can never be stuck on it.
+ *    exactly as before and can never be stuck on it;
+ *  - a photograph that leaves the "current" slot is archived instead of deleted
+ *    (see 0003_cargo_photo_history.sql), so the provider can compare the newest
+ *    submission against what came before.
  */
 
 import { CODE, failure, success } from "@/domain/results";
 import type { Result } from "@/domain/results";
-import type { Booking, BookingView } from "@/domain/types";
+import type {
+  Booking,
+  BookingView,
+  CargoPhotoHistoryView,
+  CargoPhotoSupersedeReason,
+} from "@/domain/types";
 import { requireAuthUser } from "@/server/services/auth";
 import { bookingViews } from "@/server/services/data";
 import {
   decodeCargoPhoto,
   removeCargoPhotoObject,
+  signedCargoPhotoUrls,
   uploadCargoPhotoObject,
 } from "@/server/services/storage";
 import * as repoBookings from "@/server/db/repo/bookings";
-import { ensureSeeded, findBookingById, newId, notify, nowIso, recordAudit } from "@/server/store";
+import {
+  ensureSeeded,
+  findBookingById,
+  findUserById,
+  newId,
+  notify,
+  nowIso,
+  recordAudit,
+} from "@/server/store";
+
+/**
+ * Copy a photo that is leaving the "current" slot into the history table. The
+ * snapshot passed in is the booking *before* the change, so the archived entry
+ * keeps the decision (status, note, reviewer) the photograph had at that moment.
+ *
+ * Best effort: the archive is a convenience for comparison and must never fail
+ * the trader's upload or the provider's reopen, so a write error is logged and
+ * swallowed. `cargo_photo_history` dedupes on (booking_id, path).
+ */
+async function archiveSupersededPhoto(
+  booking: Booking,
+  supersededAt: string,
+  reason: CargoPhotoSupersedeReason,
+): Promise<void> {
+  if (!booking.cargoPhotoPath) return;
+  try {
+    await repoBookings.archiveCargoPhoto({
+      id: newId("cph"),
+      bookingId: booking.id,
+      path: booking.cargoPhotoPath,
+      label: booking.cargoPhotoLabel ?? "",
+      bytes: booking.cargoPhotoBytes,
+      uploadedAt: booking.cargoPhotoUploadedAt ?? supersededAt,
+      supersededAt,
+      reason,
+      reviewStatus: booking.reviewStatus,
+      reviewNote: booking.reviewNote,
+      reviewedAt: booking.reviewedAt,
+      reviewerId: booking.reviewerId,
+    });
+  } catch (error) {
+    console.warn(
+      "[cargo] could not archive superseded photo:",
+      error instanceof Error ? error.message : error,
+    );
+  }
+}
 
 async function viewForBooking(token: string, booking: Booking): Promise<Result<BookingView>> {
   const [view] = await bookingViews(token, [booking]);
@@ -86,9 +141,10 @@ export async function submitCargoPhoto(
     return failure(CODE.NOT_FOUND, "Booking not found.");
   }
 
-  // Replacement: drop the superseded object so it cannot be fetched by anyone.
+  // Replacement: the superseded object stays in the private bucket and is
+  // archived, so the provider can compare this submission with the previous one.
   if (booking.cargoPhotoPath && booking.cargoPhotoPath !== updated.cargoPhotoPath) {
-    await removeCargoPhotoObject(token, booking.cargoPhotoPath);
+    await archiveSupersededPhoto(booking, timestamp, "replaced");
   }
 
   await recordAudit(user, "booking.cargo_photo.submit", `${booking.id} — ${label}`);
@@ -194,7 +250,12 @@ export async function reopenCargoPhoto(
     return failure(CODE.ALREADY_PENDING, "This cargo photo is already awaiting a decision.");
   }
 
-  const updated = await repoBookings.reopenCargoReview(booking.id, nowIso());
+  const timestamp = nowIso();
+  // Archive before clearing: this preserves the decision the provider is undoing
+  // even if the trader never replaces the photograph.
+  await archiveSupersededPhoto(booking, timestamp, "reopened");
+
+  const updated = await repoBookings.reopenCargoReview(booking.id, timestamp);
   if (!updated) return failure(CODE.NOT_FOUND, "Booking not found.");
 
   const note = input.note.trim();
@@ -208,6 +269,62 @@ export async function reopenCargoPhoto(
   );
 
   return viewForBooking(token, updated);
+}
+
+/**
+ * Earlier versions of a booking's cargo photograph, newest first, each with a
+ * short-lived signed URL. Readable by the same three parties the private bucket
+ * already trusts: the booking's trader, its provider, and administrators.
+ */
+export async function cargoPhotoHistory(
+  token: string,
+  input: { bookingId: string },
+): Promise<Result<CargoPhotoHistoryView[]>> {
+  await ensureSeeded();
+  const user = await requireAuthUser(token);
+  if (!user) return failure(CODE.UNAUTHORIZED, "Sign in to view earlier cargo photos.");
+
+  const booking = await findBookingById(input.bookingId);
+  if (!booking) return failure(CODE.NOT_FOUND, "Booking not found.");
+  const isParty = booking.userId === user.id || booking.providerId === user.id;
+  if (!isParty && user.role !== "admin") {
+    return failure(
+      CODE.FORBIDDEN,
+      "Only this booking's trader, its provider or an administrator can view its photo history.",
+    );
+  }
+
+  const entries = await repoBookings.listCargoPhotoHistory(booking.id);
+  if (entries.length === 0) return success([]);
+
+  const [urls, reviewerNames] = await Promise.all([
+    signedCargoPhotoUrls(
+      token,
+      entries.map((entry) => entry.path),
+    ),
+    reviewerNamesFor(entries.map((entry) => entry.reviewerId)),
+  ]);
+
+  return success(
+    entries.map((entry) => ({
+      ...entry,
+      url: urls.get(entry.path) ?? null,
+      reviewerName: entry.reviewerId ? (reviewerNames.get(entry.reviewerId) ?? null) : null,
+    })),
+  );
+}
+
+/** Resolve archived reviewer ids to display names (one lookup per distinct id). */
+async function reviewerNamesFor(ids: Array<string | null>): Promise<Map<string, string>> {
+  const unique = [...new Set(ids.filter((id): id is string => Boolean(id)))];
+  const names = new Map<string, string>();
+  await Promise.all(
+    unique.map(async (id) => {
+      const reviewer = await findUserById(id);
+      if (reviewer) names.set(id, reviewer.name);
+    }),
+  );
+  return names;
 }
 
 /** How many photos are waiting for this caller's decision (navigation badge). */

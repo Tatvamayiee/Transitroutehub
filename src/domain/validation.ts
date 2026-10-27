@@ -108,6 +108,11 @@ export const cargoReopenSchema = z.object({
   note: z.string().max(400).optional().default(""),
 });
 
+export const cargoHistorySchema = z.object({
+  token: tokenField,
+  bookingId: z.string().min(1),
+});
+
 export const bookingStatusSchema = z.object({
   token: tokenField,
   bookingId: z.string().min(1),

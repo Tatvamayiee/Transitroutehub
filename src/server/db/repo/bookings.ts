@@ -4,7 +4,13 @@
  */
 import { dbAsync } from "@/server/db/client";
 import type { CargoBox, Placement } from "@/domain/loading";
-import type { Booking, BookingStatus, CargoReviewStatus } from "@/domain/types";
+import type {
+  Booking,
+  BookingStatus,
+  CargoPhotoHistoryEntry,
+  CargoPhotoSupersedeReason,
+  CargoReviewStatus,
+} from "@/domain/types";
 
 function iso(value: string | null | undefined): string {
   return value ? new Date(value).toISOString() : new Date(0).toISOString();
@@ -221,6 +227,106 @@ export async function setCargoReview(
     .maybeSingle();
   if (error) throw error;
   return data ? toBooking(data) : undefined;
+}
+
+// ---------------- cargo photo history ----------------
+
+function toCargoPhotoHistoryEntry(row: Record<string, unknown>): CargoPhotoHistoryEntry {
+  return {
+    id: String(row["id"]),
+    bookingId: String(row["booking_id"]),
+    path: String(row["path"]),
+    label: String(row["label"] ?? ""),
+    bytes: row["bytes"] == null ? null : Number(row["bytes"]),
+    uploadedAt: iso(row["uploaded_at"] as string),
+    supersededAt: iso(row["superseded_at"] as string),
+    reason: (row["reason"] as CargoPhotoSupersedeReason | null) ?? "replaced",
+    reviewStatus: (row["review_status"] as CargoReviewStatus | null) ?? null,
+    reviewNote: String(row["review_note"] ?? ""),
+    reviewedAt: isoOrNull(row["reviewed_at"] as string | null),
+    reviewerId: (row["reviewer_id"] as string | null) ?? null,
+  };
+}
+
+/** Archived earlier versions of a booking's cargo photo, newest first. */
+export async function listCargoPhotoHistory(
+  bookingId: string,
+  limit = 20,
+): Promise<CargoPhotoHistoryEntry[]> {
+  const { data, error } = await (
+    await dbAsync()
+  )
+    .from("cargo_photo_history")
+    .select("*")
+    .eq("booking_id", bookingId)
+    .order("superseded_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []).map(toCargoPhotoHistoryEntry);
+}
+
+/**
+ * Archive one superseded photo. The unique (booking_id, path) index makes this
+ * idempotent, which is what lets a photo be archived when the provider reopens
+ * it *and* again when the trader replaces it, while keeping the decision that
+ * was recorded at reopen time.
+ */
+export async function archiveCargoPhoto(row: {
+  id: string;
+  bookingId: string;
+  path: string;
+  label: string;
+  bytes: number | null;
+  uploadedAt: string;
+  supersededAt: string;
+  reason: CargoPhotoSupersedeReason;
+  reviewStatus: CargoReviewStatus | null;
+  reviewNote: string;
+  reviewedAt: string | null;
+  reviewerId: string | null;
+}): Promise<void> {
+  const { error } = await (await dbAsync()).from("cargo_photo_history").upsert(
+    {
+      id: row.id,
+      booking_id: row.bookingId,
+      path: row.path,
+      label: row.label,
+      bytes: row.bytes,
+      uploaded_at: row.uploadedAt,
+      superseded_at: row.supersededAt,
+      reason: row.reason,
+      review_status: row.reviewStatus,
+      review_note: row.reviewNote,
+      reviewed_at: row.reviewedAt,
+      reviewer_id: row.reviewerId,
+    },
+    { onConflict: "booking_id,path", ignoreDuplicates: true },
+  );
+  if (error) throw error;
+}
+
+/**
+ * How many versions are archived per booking, for a whole list in one query
+ * (PostgREST has no group-by, so the small row set is tallied here).
+ */
+export async function countCargoPhotoHistoryFor(
+  bookingIds: string[],
+): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  const ids = [...new Set(bookingIds)].filter((id) => id.length > 0);
+  if (ids.length === 0) return counts;
+  const { data, error } = await (
+    await dbAsync()
+  )
+    .from("cargo_photo_history")
+    .select("booking_id")
+    .in("booking_id", ids);
+  if (error) throw error;
+  for (const row of data ?? []) {
+    const id = String((row as Record<string, unknown>)["booking_id"]);
+    counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+  return counts;
 }
 
 // ---------------- cargo boxes ----------------

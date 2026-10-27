@@ -1,6 +1,15 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Camera, CheckCircle2, ImageOff, Loader2, RotateCcw, Upload, XCircle } from "lucide-react";
+import {
+  Camera,
+  CheckCircle2,
+  History,
+  ImageOff,
+  Loader2,
+  RotateCcw,
+  Upload,
+  XCircle,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -16,12 +25,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { StatusPill, type Tone } from "@/components/module-kit";
 import {
   CARGO_REVIEW_LABELS,
+  CARGO_SUPERSEDE_LABELS,
   MODE_LABELS,
   type BookingView,
+  type CargoPhotoHistoryView,
   type CargoReviewStatus,
 } from "@/domain/types";
 import {
   announceCargoChange,
+  cargoPhotoHistory,
   reopenCargoPhoto,
   reviewCargoPhoto,
   submitCargoPhoto,
@@ -85,6 +97,33 @@ export function CargoPhotoDialog({
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<"upload" | "approve" | "reject" | "reopen" | null>(null);
+  const [history, setHistory] = useState<CargoPhotoHistoryView[] | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [comparing, setComparing] = useState<string | null>(null);
+
+  // Load the archived earlier versions each time the dialog opens. Both sides get
+  // the same list, so a provider can compare submissions and a trader can check
+  // what they previously sent. The server authorizes every call.
+  useEffect(() => {
+    if (!open || !token) {
+      setHistory(null);
+      setHistoryError(null);
+      setComparing(null);
+      return;
+    }
+    let cancelled = false;
+    setHistory(null);
+    setHistoryError(null);
+    setComparing(null);
+    void cargoPhotoHistory(token, booking.id).then((result) => {
+      if (cancelled) return;
+      if (result.ok) setHistory(result.value);
+      else setHistoryError(result.message);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, token, booking.id]);
 
   const uploadLocked =
     booking.status === "cancelled" ||
@@ -164,7 +203,12 @@ export function CargoPhotoDialog({
     onChanged(result.value.booking.reviewStatus);
   }
 
-  const previewSrc = staged?.dataUrl ?? view.cargoPhotoUrl;
+  // A previous version can be brought into the preview pane to compare by eye.
+  const selected = comparing
+    ? ((history ?? []).find((entry) => entry.id === comparing) ?? null)
+    : null;
+  const previewSrc = staged?.dataUrl ?? selected?.url ?? view.cargoPhotoUrl;
+  const archivedCount = history?.length ?? view.cargoPhotoHistoryCount;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -174,6 +218,12 @@ export function CargoPhotoDialog({
             <Camera className="size-4 text-primary" />
             Cargo photo
             <CargoPhotoPill status={booking.reviewStatus} />
+            {archivedCount > 0 ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                <History className="size-3" />
+                {archivedCount} earlier {archivedCount === 1 ? "version" : "versions"}
+              </span>
+            ) : null}
           </DialogTitle>
           <DialogDescription>
             {lane.origin} → {lane.destination} · {container.label} · {MODE_LABELS[lane.mode]} ·{" "}
@@ -186,7 +236,7 @@ export function CargoPhotoDialog({
             {previewSrc ? (
               <img
                 src={previewSrc}
-                alt={booking.cargoPhotoLabel ?? "Cargo photograph"}
+                alt={selected?.label ?? booking.cargoPhotoLabel ?? "Cargo photograph"}
                 className="aspect-[4/3] w-full object-contain"
               />
             ) : (
@@ -197,6 +247,26 @@ export function CargoPhotoDialog({
                   : "No photograph attached to this booking."}
               </div>
             )}
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/60 bg-background/60 px-2 py-1.5 text-xs text-muted-foreground">
+              <span>
+                {staged
+                  ? "New photograph — not uploaded yet"
+                  : selected
+                    ? `Earlier version · superseded ${formatWhen(selected.supersededAt)}`
+                    : booking.cargoPhotoPath
+                      ? "Current submission"
+                      : "No photograph yet"}
+              </span>
+              {selected ? (
+                <button
+                  type="button"
+                  className="font-medium text-primary hover:underline"
+                  onClick={() => setComparing(null)}
+                >
+                  Back to current
+                </button>
+              ) : null}
+            </div>
           </div>
 
           <dl className="space-y-2 text-sm">
@@ -236,6 +306,81 @@ export function CargoPhotoDialog({
               : null}
           </dl>
         </div>
+
+        {history && history.length > 0 ? (
+          <div className="rounded-lg border border-border/60 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="flex items-center gap-2 text-sm font-medium">
+                <History className="size-4 text-primary" />
+                Previous submissions ({history.length})
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Select one to see it in the preview, with the decision it received at the time.
+              </p>
+            </div>
+            <div className="mt-3 flex gap-3 overflow-x-auto pb-1">
+              {history.map((entry) => (
+                <button
+                  key={entry.id}
+                  type="button"
+                  aria-pressed={entry.id === comparing}
+                  onClick={() => setComparing(entry.id === comparing ? null : entry.id)}
+                  className={cn(
+                    "w-44 shrink-0 overflow-hidden rounded-md border text-left transition",
+                    entry.id === comparing
+                      ? "border-primary ring-2 ring-primary/30"
+                      : "border-border/60 hover:border-primary/40",
+                  )}
+                >
+                  {entry.url ? (
+                    <img
+                      src={entry.url}
+                      alt={entry.label || "Earlier cargo photograph"}
+                      className="h-24 w-full object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="flex h-24 items-center justify-center p-2 text-center text-xs text-muted-foreground">
+                      Thumbnail unavailable
+                    </div>
+                  )}
+                  <span className="block px-2 py-1.5">
+                    <span className="block truncate text-xs font-medium">
+                      {entry.label || "Untitled photograph"}
+                    </span>
+                    <span className="block text-[11px] text-muted-foreground">
+                      {formatWhen(entry.supersededAt)} · {formatBytes(entry.bytes)}
+                    </span>
+                    <span className="mt-1 block">
+                      <CargoPhotoPill status={entry.reviewStatus} />
+                    </span>
+                    <span className="mt-1 block text-[11px] text-muted-foreground">
+                      {CARGO_SUPERSEDE_LABELS[entry.reason]}
+                      {entry.reviewerName ? ` · ${entry.reviewerName}` : ""}
+                    </span>
+                    {entry.reviewNote ? (
+                      <span className="mt-1 block text-[11px] text-destructive/90">
+                        {entry.reviewNote}
+                      </span>
+                    ) : null}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {historyError ? (
+          <p className="rounded-md border border-dashed border-border/60 px-3 py-2 text-xs text-muted-foreground">
+            Earlier versions could not be loaded — {historyError}
+          </p>
+        ) : null}
+
+        {history === null && !historyError && booking.cargoPhotoPath ? (
+          <p className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Loader2 className="size-3.5 animate-spin" /> Checking for earlier submissions…
+          </p>
+        ) : null}
 
         {error ? (
           <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">

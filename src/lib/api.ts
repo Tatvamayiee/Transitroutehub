@@ -13,6 +13,7 @@ import {
   serverBookingDetails,
   serverCancelBooking,
   serverCargoPendingCount,
+  serverCargoPhotoHistory,
   serverCargoReviewQueue,
   serverCreateBooking,
   serverCreateContainer,
@@ -63,6 +64,7 @@ import type {
   AuditEvent,
   BookingStatus,
   BookingView,
+  CargoPhotoHistoryView,
   CargoReviewDecision,
   CapacitySummary,
   Container,
@@ -90,6 +92,7 @@ export type {
   AuditEvent,
   BookingStatus,
   BookingView,
+  CargoPhotoHistoryView,
   CargoReviewDecision,
   CapacitySummary,
   Container,
@@ -201,6 +204,13 @@ export const reopenCargoPhoto = (data: { token: string; bookingId: string; note:
   serverReopenCargoPhoto({ data });
 
 export const cargoReviewQueue = (token: string) => serverCargoReviewQueue({ data: { token } });
+
+/**
+ * Earlier versions of a booking's cargo photo, newest first, each with a
+ * short-lived signed URL so the UI can compare them against the current one.
+ */
+export const cargoPhotoHistory = (token: string, bookingId: string) =>
+  serverCargoPhotoHistory({ data: { token, bookingId } });
 
 /** Photos awaiting this provider's decision — powers the navigation badge. */
 export const cargoPendingCount = (token: string) => serverCargoPendingCount({ data: { token } });
